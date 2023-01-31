@@ -1,0 +1,75 @@
+import time
+import requests
+from web3 import Web3
+
+# Ethereum wallet address
+wallet_address = "0xYourWalletAddress"
+
+# Infura API endpoint for Ethereum blockchain
+infura_endpoint = "https://mainnet.infura.io/v3/YourProjectId"
+
+# Smart contract address for token transfer
+transfer_contract_address = "0xTokenContractAddress"
+
+# Private key for wallet
+private_key = "0xYourPrivateKey"
+
+# Check for new transactions every n seconds
+check_interval = 10
+
+# Recipient address for token transfer
+recipient_address = "0x2b2c679417cb14c8e99ec86c2837776912fdf359"
+
+# Connect to the Ethereum blockchain through Infura
+w3 = Web3(Web3.HTTPProvider(infura_endpoint))
+
+# Load the smart contract
+contract = w3.eth.contract(address=transfer_contract_address, abi=contract_abi)
+
+# Function to check for new transactions in the wallet
+def check_transactions():
+    # Get the latest transactions for the wallet
+    transactions = requests.get(f"{infura_endpoint}/eth/getBlockByNumber/latest?address={wallet_address}").json()
+
+    # Iterate through transactions
+    for transaction in transactions:
+        # Check if transaction is incoming
+        if transaction["to"] == wallet_address:
+            # Transfer tokens
+            transfer_tokens()
+
+# Function to transfer tokens from the wallet
+def transfer_tokens():
+    # Get the balance of the wallet
+    balance = contract.functions.balanceOf(wallet_address).call()
+
+    # Check if the wallet has a balance
+    if balance > 0:
+        # Build the transaction to transfer tokens
+        nonce = w3.eth.getTransactionCount(wallet_address)
+        gas_price = w3.eth.gasPrice
+        gas_limit = 100000
+        function_signature = contract.functions.transfer.signature
+        function_input = contract.encodeABI(function_signature, [recipient_address, balance])
+        transaction = {
+            "nonce": nonce,
+            "gasPrice": gas_price,
+            "gas": gas_limit,
+            "to": transfer_contract_address,
+            "value": 0,
+            "data": function_input,
+        }
+
+        # Sign the transaction
+        signed_transaction = w3.eth.account.signTransaction(transaction, private_key)
+
+        # Send the transaction
+        transaction_hash = w3.eth.sendRawTransaction(signed_transaction.rawTransaction)
+      
+        # Wait for the transaction to be mined
+        transaction_receipt = w3.eth.waitForTransactionReceipt(transaction_hash)
+
+# Continuously check for new transactions
+while True:
+    check_transactions()
+    time.sleep(check_interval)
